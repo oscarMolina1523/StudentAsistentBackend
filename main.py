@@ -16,17 +16,25 @@ load_dotenv()
 FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
 FIREBASE_API_KEY = "AIzaSyDqlannZbTIy-WDM2ZmiOhsNPP7PzglDT8"  # Clave de API del proyecto Firebase
 
-# Load Firebase credentials from environment variable or fallback to local file
-firebase_credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-if firebase_credentials_path and os.path.exists(firebase_credentials_path):
-    cred = credentials.Certificate(firebase_credentials_path)
-elif os.path.exists("studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json"):
-    cred = credentials.Certificate("studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json")
-else:
-    raise RuntimeError("Firebase credentials are not set in the environment or available as a local file")
+# Cargar credenciales de Firebase desde variables de entorno (Railway)
+firebase_creds = {
+    "type": os.getenv("type"),
+    "project_id": os.getenv("project_id"),
+    "private_key_id": os.getenv("private_key_id"),
+    "private_key": os.getenv("private_key").replace('\\n', '\n'),
+    "client_email": os.getenv("client_email"),
+    "client_id": os.getenv("client_id"),
+    "auth_uri": os.getenv("auth_uri"),
+    "token_uri": os.getenv("token_uri"),
+    "auth_provider_x509_cert_url": os.getenv("auth_provider_x509_cert_url"),
+    "client_x509_cert_url": os.getenv("client_x509_cert_url"),
+    "universe_domain": os.getenv("universe_domain")
+}
 
+cred = credentials.Certificate(firebase_creds)
 initialize_app(cred)
 db = firestore.client()
+
 
 app = FastAPI()
 
