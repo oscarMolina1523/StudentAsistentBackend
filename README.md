@@ -5,7 +5,10 @@ Este proyecto es una API RESTful construida con FastAPI que utiliza Firebase par
 ## Requisitos previos
 
 - Python 3.9 o superior.
-- Archivo de credenciales de Firebase (`studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json`).
+- Archivo de configuración `.env` con las siguientes variables:
+  ```env
+  FIREBASE_CREDENTIALS_PATH=path/to/your/firebase/credentials.json
+  ```
 - Dependencias instaladas:
   ```bash
   pip install fastapi uvicorn firebase-admin python-jose python-multipart requests
