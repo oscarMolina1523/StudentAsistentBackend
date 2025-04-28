@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import requests
 import os
 from dotenv import load_dotenv
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,11 +17,12 @@ FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWi
 FIREBASE_API_KEY = "AIzaSyDqlannZbTIy-WDM2ZmiOhsNPP7PzglDT8"  # Clave de API del proyecto Firebase
 
 # Load Firebase credentials from environment variable
-firebase_credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-if not firebase_credentials_path:
-    raise RuntimeError("Environment variable FIREBASE_CREDENTIALS_PATH is not set")
+firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
+if not firebase_credentials_json:
+    raise RuntimeError("Environment variable FIREBASE_CREDENTIALS_JSON is not set")
 
-cred = credentials.Certificate(firebase_credentials_path)
+firebase_credentials = json.loads(firebase_credentials_json)
+cred = credentials.Certificate(firebase_credentials)
 initialize_app(cred)
 db = firestore.client()
 
