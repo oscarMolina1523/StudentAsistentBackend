@@ -315,3 +315,10 @@ def mark_attendance(attendance: Attendance):
             return {"message": "Attendance marked and notification sent", "notification": notification_message}
 
     return {"message": "Attendance marked successfully"}
+
+# Obtener el puerto desde la variable de entorno o usar un valor por defecto
+port = int(os.getenv("PORT", 8000))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
