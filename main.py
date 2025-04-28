@@ -6,12 +6,17 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
 import requests
+import os
 
 FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
 FIREBASE_API_KEY = "AIzaSyDqlannZbTIy-WDM2ZmiOhsNPP7PzglDT8"  # Clave de API del proyecto Firebase
 
-# Initialize Firebase Admin SDK
-cred = credentials.Certificate("studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json")
+# Load Firebase credentials from environment variable
+firebase_credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+if not firebase_credentials_path:
+    raise RuntimeError("Environment variable FIREBASE_CREDENTIALS_PATH is not set")
+
+cred = credentials.Certificate(firebase_credentials_path)
 initialize_app(cred)
 db = firestore.client()
 
