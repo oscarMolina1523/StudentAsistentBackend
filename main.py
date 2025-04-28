@@ -16,13 +16,15 @@ load_dotenv()
 FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
 FIREBASE_API_KEY = "AIzaSyDqlannZbTIy-WDM2ZmiOhsNPP7PzglDT8"  # Clave de API del proyecto Firebase
 
-# Load Firebase credentials from environment variable
-firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
-if not firebase_credentials_json:
-    raise RuntimeError("Environment variable FIREBASE_CREDENTIALS_JSON is not set")
+# Load Firebase credentials from environment variable or fallback to local file
+firebase_credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+if firebase_credentials_path and os.path.exists(firebase_credentials_path):
+    cred = credentials.Certificate(firebase_credentials_path)
+elif os.path.exists("studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json"):
+    cred = credentials.Certificate("studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json")
+else:
+    raise RuntimeError("Firebase credentials are not set in the environment or available as a local file")
 
-firebase_credentials = json.loads(firebase_credentials_json)
-cred = credentials.Certificate(firebase_credentials)
 initialize_app(cred)
 db = firestore.client()
 
