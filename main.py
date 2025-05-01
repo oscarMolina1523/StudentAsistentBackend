@@ -43,7 +43,7 @@ class Student(BaseModel):
     apellido: str
     gradoId: str
     turno: str
-    fechaNacimiento: str = Field(..., example="01/05/2025")  # Agregado ejemplo en formato DD/MM/YYYY
+    fechaNacimiento: str  # Solo string, sin validación de formato
     activo: bool
 
 class TutorStudentRelation(BaseModel):
@@ -174,12 +174,6 @@ def edit_profile(user_id: str, user: User):
 # CRUD for Students
 @app.post("/students")
 def create_student(student: Student):
-    # Validar formato de fecha de nacimiento
-    try:
-        datetime.strptime(student.fechaNacimiento, "%d/%m/%Y")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Formato de fecha de nacimiento inválido. Use DD/MM/YYYY.")
-
     student_ref = db.collection("students").add(student.dict())
     return {"id": student_ref[1].id, "message": "Student created successfully"}
 
