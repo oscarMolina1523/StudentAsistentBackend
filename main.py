@@ -40,33 +40,61 @@ app = FastAPI()
 
 # Models
 class User(BaseModel):
+    nombre: str
     email: str
-    password: str
-    role: str  # admin, professor, tutor
+    rol: str  # admin, profesor, tutor
+    fotoPerfilUrl: Optional[str] = None
+    fechaCreacion: datetime
 
 class Student(BaseModel):
-    name: str
-    age: int
-    school_year: str
+    nombre: str
+    apellido: str
+    gradoId: str
+    turno: str
+    fechaNacimiento: datetime
+    activo: bool
 
-class Professor(BaseModel):
-    name: str
-    subject: str
+class TutorStudentRelation(BaseModel):
+    tutorId: str
+    alumnoId: str
 
-class SchoolYear(BaseModel):
-    year: str
-    subjects: List[str]
+class Grade(BaseModel):
+    nombre: str
+    descripcion: str
+    imagenUrl: Optional[str] = None
+    turno: str  # matutino, vespertino
 
 class Subject(BaseModel):
-    name: str
-    professor_id: str
-    student_ids: List[str]
+    nombre: str
+    imagenUrl: Optional[str] = None
+
+class GradeSubjectRelation(BaseModel):
+    gradoId: str
+    materiaId: str
+    semestre: int
+
+class ProfessorSubjectRelation(BaseModel):
+    profesorId: str
+    materiaGradoId: str
+    turno: str
+    anioEscolar: int
 
 class Attendance(BaseModel):
-    student_id: str
-    subject: str
-    status: str  # present, absent, justified
-    reason: Optional[str] = None
+    alumnoId: str
+    materiaProfesorId: str
+    fecha: datetime
+    estado: str  # presente, ausente, justificado
+    justificacion: Optional[str] = None
+    registradoPor: str
+    horaRegistro: str
+
+class Notification(BaseModel):
+    alumnoId: str
+    tutorId: str
+    mensaje: str
+    tipo: str  # inasistencia, etc.
+    fechaEnvio: datetime
+    leido: bool
 
 # Secret key and algorithm for JWT
 token_secret_key = "your_secret_key"
@@ -98,64 +126,58 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
 # Authentication Endpoints
-from fastapi import APIRouter, HTTPException
-from firebase_admin import auth
-from pydantic import BaseModel
+@app.post("/auth/register")
+def register_user(user: User, password: str):
+    # Check if user already exists
+    existing_user = db.collection("users").where("email", "==", user.email).get()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User already exists")
 
-router = APIRouter()
+    # Create user in Firebase Auth with provided password
+    firebase_user = auth.create_user(
+        email=user.email,
+        password=password,  # Use the provided password
+        display_name=user.nombre
+    )
 
-# Modelos para los endpoints
-class RegisterRequest(BaseModel):
-    email: str
-    password: str
-    role: str  # admin, professor, tutor
+    # Save user details in Firestore
+    user_data = user.dict()
+    user_data["uid"] = firebase_user.uid
+    user_data["fechaCreacion"] = datetime.utcnow()  # Automatically set creation date
+    db.collection("users").document(firebase_user.uid).set(user_data)
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
+    return {"message": "User registered successfully", "userId": firebase_user.uid}
 
-@router.post("/register")
-async def register_user(request: RegisterRequest):
+@app.post("/auth/login")
+def login_user(email: str, password: str):
+    # Firebase Auth login
     try:
-        # Crear usuario en Firebase Authentication
-        user = auth.create_user(
-            email=request.email,
-            password=request.password
-        )
-
-        # Guardar información adicional en Firestore
-        db.collection("users").document(user.uid).set({
-            "email": request.email,
-            "role": request.role
-        })
-
-        return {"message": "User registered successfully", "user_id": user.uid}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/login")
-async def login_user(request: LoginRequest):
-    try:
-        # Realizar una solicitud HTTP al endpoint de autenticación de Firebase
         response = requests.post(
-            f"{FIREBASE_AUTH_URL}?key={FIREBASE_API_KEY}",
-            json={"email": request.email, "password": request.password, "returnSecureToken": True}
+            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}",
+            json={"email": email, "password": password, "returnSecureToken": True}
         )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        raise HTTPException(status_code=400, detail="Invalid email or password")
 
-        if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Invalid email or password")
+@app.put("/auth/edit-profile")
+def edit_profile(user_id: str, user: User):
+    user_ref = db.collection("users").document(user_id)
+    if not user_ref.get().exists:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        data = response.json()
-        return {
-            "idToken": data["idToken"],
-            "refreshToken": data["refreshToken"],
-            "expiresIn": data["expiresIn"]
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    # Update user details in Firestore
+    user_ref.update(user.dict())
 
-# Include the router for authentication endpoints
-app.include_router(router, prefix="/auth", tags=["Authentication"])
+    # Update Firebase Auth user
+    auth.update_user(
+        user_id,
+        email=user.email,
+        display_name=user.nombre
+    )
+
+    return {"message": "Profile updated successfully"}
 
 # CRUD for Students
 @app.post("/students")
@@ -194,79 +216,248 @@ def delete_student(student_id: str):
     student_ref.delete()
     return {"message": "Student deleted successfully"}
 
-# CRUD for Professors
-@app.post("/professors")
-def create_professor(professor: Professor):
-    professor_ref = db.collection("professors").add(professor.dict())
-    return {"id": professor_ref[1].id, "message": "Professor created successfully"}
+# User Endpoints
+@app.get("/users/{user_id}")
+def get_user(user_id: str):
+    user = db.collection("users").document(user_id).get()
+    if not user.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user.to_dict()
 
-@app.get("/professors")
-def get_professors():
-    professors = [
-        {"id": doc.id, **doc.to_dict()}  # Include the document ID in the response
-        for doc in db.collection("professors").stream()
+@app.put("/users/{user_id}")
+def update_user(user_id: str, user: User):
+    user_ref = db.collection("users").document(user_id)
+    if not user_ref.get().exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_ref.update(user.dict())
+    return {"message": "User updated successfully"}
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: str):
+    user_ref = db.collection("users").document(user_id)
+    if not user_ref.get().exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_ref.delete()
+    return {"message": "User deleted successfully"}
+
+
+# Endpoint to get users by any role
+@app.get("/users/by-role/{rol}")
+def get_users_by_role(rol: str):
+    """
+    Retorna todos los usuarios con el rol especificado.
+    """
+    users = [
+        {"id": doc.id, **doc.to_dict()}
+        for doc in db.collection("users").where("rol", "==", rol).stream()
     ]
-    return professors
+    return users
 
-@app.get("/professors/{professor_id}")
-def get_professor(professor_id: str):
-    professor = db.collection("professors").document(professor_id).get()
-    if not professor.exists:
-        raise HTTPException(status_code=404, detail="Professor not found")
-    return professor.to_dict()
-
-@app.put("/professors/{professor_id}")
-def update_professor(professor_id: str, professor: Professor):
-    professor_ref = db.collection("professors").document(professor_id)
-    if not professor_ref.get().exists:
-        raise HTTPException(status_code=404, detail="Professor not found")
-    professor_ref.update(professor.dict())
-    return {"message": "Professor updated successfully"}
-
-@app.delete("/professors/{professor_id}")
-def delete_professor(professor_id: str):
-    professor_ref = db.collection("professors").document(professor_id)
-    if not professor_ref.get().exists:
-        raise HTTPException(status_code=404, detail="Professor not found")
-    professor_ref.delete()
-    return {"message": "Professor deleted successfully"}
-
-# CRUD for School Years
-@app.post("/school_years")
-def create_school_year(school_year: SchoolYear):
-    school_year_ref = db.collection("school_years").add(school_year.dict())
-    return {"id": school_year_ref[1].id, "message": "School year created successfully"}
-
-@app.get("/school_years")
-def get_school_years():
-    school_years = [
-        {"id": doc.id, **doc.to_dict()}  # Include the document ID in the response
-        for doc in db.collection("school_years").stream()
+# Endpoint to get students by grade ID
+@app.get("/students/by-grado/{gradoId}")
+def get_students_by_grado(gradoId: str):
+    """
+    Retorna todos los alumnos que pertenecen al grado especificado.
+    """
+    students = [
+        {"id": doc.id, **doc.to_dict()}
+        for doc in db.collection("students").where("gradoId", "==", gradoId).stream()
     ]
-    return school_years
+    return students
 
-@app.get("/school_years/{school_year_id}")
-def get_school_year(school_year_id: str):
-    school_year = db.collection("school_years").document(school_year_id).get()
-    if not school_year.exists:
-        raise HTTPException(status_code=404, detail="School year not found")
-    return school_year.to_dict()
+# Endpoint to get students by shift (turno)
+@app.get("/students/by-turno/{turno}")
+def get_students_by_turno(turno: str):
+    """
+    Retorna todos los alumnos con el turno especificado ('matutino' o 'vespertino').
+    """
+    students = [
+        {"id": doc.id, **doc.to_dict()}
+        for doc in db.collection("students").where("turno", "==", turno).stream()
+    ]
+    return students
 
-@app.put("/school_years/{school_year_id}")
-def update_school_year(school_year_id: str, school_year: SchoolYear):
-    school_year_ref = db.collection("school_years").document(school_year_id)
-    if not school_year_ref.get().exists:
-        raise HTTPException(status_code=404, detail="School year not found")
-    school_year_ref.update(school_year.dict())
-    return {"message": "School year updated successfully"}
+# Endpoint to get available options for tutor-student relations
+@app.get("/relations/available-options")
+def get_available_options():
+    # Fetch students
+    students = [
+        {
+            "id": doc.id,
+            "nombreCompleto": f"{doc.to_dict().get('nombre', '')} {doc.to_dict().get('apellido', '')}",
+            "gradoId": doc.to_dict().get("gradoId")
+        }
+        for doc in db.collection("students").stream()
+    ]
 
-@app.delete("/school_years/{school_year_id}")
-def delete_school_year(school_year_id: str):
-    school_year_ref = db.collection("school_years").document(school_year_id)
-    if not school_year_ref.get().exists:
-        raise HTTPException(status_code=404, detail="School year not found")
-    school_year_ref.delete()
-    return {"message": "School year deleted successfully"}
+    # Fetch tutors
+    tutors = [
+        {
+            "id": doc.id,
+            "nombre": doc.to_dict().get("nombre"),
+            "email": doc.to_dict().get("email"),
+            "fotoPerfilUrl": doc.to_dict().get("fotoPerfilUrl")
+        }
+        for doc in db.collection("users").where("rol", "==", "tutor").stream()
+    ]
+
+    return {"students": students, "tutors": tutors}
+
+# Endpoint to get detailed tutor-student relations
+@app.get("/relations/detailed")
+def get_detailed_relations():
+    relations = []
+    tutor_student_relations = db.collection("tutor_student_relations").stream()
+
+    for relation in tutor_student_relations:
+        relation_data = relation.to_dict()
+        tutor = db.collection("users").document(relation_data["tutorId"]).get().to_dict()
+        student = db.collection("students").document(relation_data["alumnoId"]).get().to_dict()
+
+        relations.append({
+            "relationId": relation.id,
+            "tutor": {"nombre": tutor["nombre"], "email": tutor["email"]},
+            "student": {"nombre": student["nombre"], "apellido": student["apellido"], "gradoId": student["gradoId"]}
+        })
+
+    return relations
+
+# Improved POST endpoint for tutor-student relations
+@app.post("/tutor-student")
+def create_tutor_student_relation(relation: TutorStudentRelation):
+    # Check for existing relation
+    existing_relation = db.collection("tutor_student_relations").where("tutorId", "==", relation.tutorId).where("alumnoId", "==", relation.alumnoId).get()
+    if existing_relation:
+        raise HTTPException(status_code=400, detail="Relation already exists")
+
+    # Create new relation
+    relation_ref = db.collection("tutor_student_relations").add(relation.dict())
+    return {"id": relation_ref[1].id, "message": "Relation created successfully"}
+
+@app.get("/tutor-student")
+def get_tutor_student_relations():
+    relations = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("tutor_student_relations").stream()
+    ]
+    return relations
+
+@app.get("/tutor-student/{relation_id}")
+def get_tutor_student_relation(relation_id: str):
+    relation = db.collection("tutor_student_relations").document(relation_id).get()
+    if not relation.exists:
+        raise HTTPException(status_code=404, detail="Relation not found")
+    return relation.to_dict()
+
+@app.put("/tutor-student/{relation_id}")
+def update_tutor_student_relation(relation_id: str, relation: TutorStudentRelation):
+    relation_ref = db.collection("tutor_student_relations").document(relation_id)
+    if not relation_ref.get().exists:
+        raise HTTPException(status_code=404, detail="Relation not found")
+    relation_ref.update(relation.dict())
+    return {"message": "Relation updated successfully"}
+
+@app.delete("/tutor-student/{relation_id}")
+def delete_tutor_student_relation(relation_id: str):
+    relation_ref = db.collection("tutor_student_relations").document(relation_id)
+    if not relation_ref.get().exists:
+        raise HTTPException(status_code=404, detail="Relation not found")
+    relation_ref.delete()
+    return {"message": "Relation deleted successfully"}
+
+# CRUD for Grades
+@app.post("/grades")
+def create_grade(grade: Grade):
+    grade_ref = db.collection("grades").add(grade.dict())
+    return {"id": grade_ref[1].id, "message": "Grade created successfully"}
+
+@app.get("/grades")
+def get_grades():
+    grades = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("grades").stream()
+    ]
+    return grades
+
+@app.get("/grades/{grade_id}")
+def get_grade(grade_id: str):
+    grade = db.collection("grades").document(grade_id).get()
+    if not grade.exists:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    return grade.to_dict()
+
+@app.put("/grades/{grade_id}")
+def update_grade(grade_id: str, grade: Grade):
+    grade_ref = db.collection("grades").document(grade_id)
+    if not grade_ref.get().exists:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    grade_ref.update(grade.dict())
+    return {"message": "Grade updated successfully"}
+
+@app.delete("/grades/{grade_id}")
+def delete_grade(grade_id: str):
+    grade_ref = db.collection("grades").document(grade_id)
+    if not grade_ref.get().exists:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    grade_ref.delete()
+    return {"message": "Grade deleted successfully"}
+
+@app.get("/grades/full")
+def get_full_grades(current_user: dict = Depends(get_current_user)):
+    # Fetch all grades
+    grades = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("grades").stream()
+    ]
+
+    full_grades = []
+
+    for grade in grades:
+        # Fetch subjects related to the grade
+        grade_subjects = [
+            {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").where("gradoId", "==", grade["id"]).stream()
+        ]
+
+        materias = []
+        for grade_subject in grade_subjects:
+            # Fetch subject name
+            subject = db.collection("subjects").document(grade_subject["materiaId"]).get()
+            subject_name = subject.to_dict()["nombre"] if subject.exists else None
+
+            # Fetch professor assigned to the subject
+            professor_subject = db.collection("professor_subjects").where("materiaGradoId", "==", grade_subject["id"]).get()
+            professor_data = None
+            if professor_subject:
+                professor_id = professor_subject[0].to_dict()["profesorId"]
+                professor = db.collection("users").document(professor_id).get()
+                if professor.exists:
+                    professor_data = {
+                        "id": professor.id,
+                        "nombre": professor.to_dict().get("nombre"),
+                        "email": professor.to_dict().get("email")
+                    }
+
+            materias.append({
+                "id": grade_subject["id"],
+                "nombre": subject_name,
+                "semestre": grade_subject.get("semestre"),
+                "profesor": professor_data
+            })
+
+        # Fetch students in the grade
+        students = [
+            {"id": doc.id, "nombre": f"{doc.to_dict().get('nombre', '')} {doc.to_dict().get('apellido', '')}"}
+            for doc in db.collection("students").where("gradoId", "==", grade["id"]).stream()
+        ]
+
+        full_grades.append({
+            "grado": {
+                "id": grade["id"],
+                "nombre": grade.get("nombre"),
+                "turno": grade.get("turno")
+            },
+            "materias": materias,
+            "alumnos": students
+        })
+
+    return full_grades
 
 # CRUD for Subjects
 @app.post("/subjects")
@@ -277,8 +468,7 @@ def create_subject(subject: Subject):
 @app.get("/subjects")
 def get_subjects():
     subjects = [
-        {"id": doc.id, **doc.to_dict()}  # Include the document ID in the response
-        for doc in db.collection("subjects").stream()
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("subjects").stream()
     ]
     return subjects
 
@@ -305,28 +495,132 @@ def delete_subject(subject_id: str):
     subject_ref.delete()
     return {"message": "Subject deleted successfully"}
 
-# Attendance and Notifications
-@app.post("/attendance")
+# Endpoint to create multiple relations between a grade and subjects
+@app.post("/grade-subjects")
+def create_grade_subject_relations(relations: List[GradeSubjectRelation]):
+    created_relations = []
+    for relation in relations:
+        # Check for existing relation
+        existing_relation = db.collection("grade_subjects").where("gradoId", "==", relation.gradoId).where("materiaId", "==", relation.materiaId).where("semestre", "==", relation.semestre).get()
+        if existing_relation:
+            continue  # Skip if relation already exists
+
+        # Create new relation
+        relation_ref = db.collection("grade_subjects").add(relation.dict())
+        created_relations.append({"id": relation_ref[1].id, **relation.dict()})
+
+    return {"created_relations": created_relations}
+
+# Endpoint to get all subjects associated with a grade
+@app.get("/grade-subjects/{gradoId}")
+def get_grade_subjects(gradoId: str):
+    subjects = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").where("gradoId", "==", gradoId).stream()
+    ]
+    return subjects
+
+# Endpoint to assign a professor to a subject of a grade
+@app.post("/professor-subjects")
+def create_professor_subject_relation(relation: ProfessorSubjectRelation):
+    # Check for existing relation
+    existing_relation = db.collection("professor_subjects").where("profesorId", "==", relation.profesorId).where("materiaGradoId", "==", relation.materiaGradoId).where("turno", "==", relation.turno).where("anioEscolar", "==", relation.anioEscolar).get()
+    if existing_relation:
+        raise HTTPException(status_code=400, detail="Relation already exists")
+
+    # Create new relation
+    relation_ref = db.collection("professor_subjects").add(relation.dict())
+    return {"id": relation_ref[1].id, "message": "Relation created successfully"}
+
+# Endpoint to list all subject assignments for a professor
+@app.get("/professor-subjects/{profesorId}")
+def get_professor_subjects(profesorId: str):
+    assignments = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("professor_subjects").where("profesorId", "==", profesorId).stream()
+    ]
+    return assignments
+
+# Endpoint to get all students in a grade for a specific subject
+@app.get("/professor-subjects/{materiaGradoId}/students")
+def get_students_in_subject(materiaGradoId: str):
+    # Fetch the grade ID from the grade-subject relation
+    grade_subject = db.collection("grade_subjects").document(materiaGradoId).get()
+    if not grade_subject.exists:
+        raise HTTPException(status_code=404, detail="Grade-Subject relation not found")
+
+    gradoId = grade_subject.to_dict()["gradoId"]
+
+    # Fetch students in the grade
+    students = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("students").where("gradoId", "==", gradoId).stream()
+    ]
+    return students
+
+# Endpoint to get user-related information
+@app.get("/user/{user_id}/info")
+def get_user_info(user_id: str):
+    user_data = db.collection("users").document(user_id).get()
+    if not user_data.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_info = user_data.to_dict()
+    # If the user is a tutor, fetch grades and subjects of their children
+    if user_info["rol"] == "tutor":
+        tutor_students = db.collection("tutor_student_relations").where("tutorId", "==", user_id).stream()
+        grades = []
+        subjects = []
+        for relation in tutor_students:
+            student_id = relation.to_dict()["alumnoId"]
+            student = db.collection("students").document(student_id).get().to_dict()
+            grades.append(student["gradoId"])
+            grade_subjects = db.collection("grade_subjects").where("gradoId", "==", student["gradoId"]).stream()
+            for subject in grade_subjects:
+                subjects.append(subject.to_dict()["materiaId"])
+        # Fetch notifications
+        notifications = [
+            {"id": doc.id, **doc.to_dict()} for doc in db.collection("notifications").where("tutorId", "==", user_id).stream()
+        ]
+        return {"grades": grades, "subjects": subjects, "notifications": notifications}
+
+    # If the user is a professor, fetch assigned grades and subjects
+    if user_info["rol"] == "profesor":
+        assigned_subjects = db.collection("professor_subjects").where("profesorId", "==", user_id).stream()
+        grades = []
+        subjects = []
+        for relation in assigned_subjects:
+            subject_data = relation.to_dict()
+            subjects.append(subject_data["materiaId"])
+            grades.append(subject_data["gradoId"])
+        return {"grades": grades, "subjects": subjects}
+
+    raise HTTPException(status_code=403, detail="Access denied for this role")
+
+# Endpoint to mark attendance and generate notifications
+@app.post("/attendance/mark")
 def mark_attendance(attendance: Attendance):
-    attendance_data = attendance.dict()
-    attendance_data["timestamp"] = datetime.utcnow()
-    db.collection("attendance").add(attendance_data)
+    # Validate materiaProfesorId
+    professor_subject = db.collection("professor_subjects").document(attendance.materiaProfesorId).get()
+    if not professor_subject.exists:
+        raise HTTPException(status_code=404, detail="Professor-Subject relation not found")
 
-    # Check for 3 absences in the last 7 days
-    one_week_ago = datetime.utcnow() - timedelta(days=7)
-    absences = db.collection("attendance").where("student_id", "==", attendance.student_id) \
-        .where("status", "==", "absent").where("timestamp", ">=", one_week_ago).stream()
-    absence_count = len(list(absences))
+    # Record attendance
+    attendance_ref = db.collection("attendance").add(attendance.dict())
 
-    if absence_count >= 3:
-        student = db.collection("students").document(attendance.student_id).get()
-        if student.exists:
-            student_name = student.to_dict().get("name", "Unknown")
-            notification_message = f"Student {student_name} has 3 absences in the last week."
-            db.collection("notifications").add({"message": notification_message, "timestamp": datetime.utcnow()})
-            return {"message": "Attendance marked and notification sent", "notification": notification_message}
+    # Generate notification if the student is absent or justified
+    if attendance.estado in ["ausente", "justificado"]:
+        tutor_relations = db.collection("tutor_student_relations").where("alumnoId", "==", attendance.alumnoId).stream()
+        for relation in tutor_relations:
+            tutor_id = relation.to_dict()["tutorId"]
+            notification = Notification(
+                alumnoId=attendance.alumnoId,
+                tutorId=tutor_id,
+                mensaje=f"Tu hijo/a estuvo {attendance.estado} en la clase de {attendance.materiaProfesorId}",
+                tipo=attendance.estado,
+                fechaEnvio=datetime.utcnow(),
+                leido=False
+            )
+            db.collection("notifications").add(notification.dict())
 
-    return {"message": "Attendance marked successfully"}
+    return {"message": "Attendance recorded successfully"}
 
 # Obtener el puerto desde la variable de entorno o usar un valor por defecto
 port = int(os.getenv("PORT", 8000))

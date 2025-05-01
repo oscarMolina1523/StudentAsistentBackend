@@ -247,6 +247,186 @@ La API estará disponible en `http://127.0.0.1:8000`.
   }
   ```
 
+### 5. Relaciones entre grados, materias, profesores y alumnos
+
+#### **Crear relaciones entre grados y materias**
+- **URL**: `/grade-subjects`
+- **Método**: `POST`
+- **Descripción**: Permite agregar múltiples materias a un grado en una sola petición.
+- **Body**:
+  ```json
+  [
+    {
+      "gradoId": "<grado_id>",
+      "materiaId": "<materia_id>",
+      "semestre": 1
+    }
+  ]
+  ```
+- **Respuesta**:
+  ```json
+  {
+    "created_relations": [
+      {
+        "id": "<relation_id>",
+        "gradoId": "<grado_id>",
+        "materiaId": "<materia_id>",
+        "semestre": 1
+      }
+    ]
+  }
+  ```
+
+#### **Obtener materias asociadas a un grado**
+- **URL**: `/grade-subjects/{gradoId}`
+- **Método**: `GET`
+- **Descripción**: Devuelve todas las materias asociadas a un grado específico.
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<relation_id>",
+      "gradoId": "<grado_id>",
+      "materiaId": "<materia_id>",
+      "semestre": 1
+    }
+  ]
+  ```
+
+#### **Asignar profesor a una materia de un grado**
+- **URL**: `/professor-subjects`
+- **Método**: `POST`
+- **Descripción**: Asigna un profesor a una materia de un grado en un turno específico y año escolar.
+- **Body**:
+  ```json
+  {
+    "profesorId": "<profesor_id>",
+    "materiaGradoId": "<materia_grado_id>",
+    "turno": "matutino",
+    "anioEscolar": 2025
+  }
+  ```
+- **Respuesta**:
+  ```json
+  {
+    "id": "<relation_id>",
+    "message": "Relation created successfully"
+  }
+  ```
+
+#### **Listar asignaciones de materias de un profesor**
+- **URL**: `/professor-subjects/{profesorId}`
+- **Método**: `GET`
+- **Descripción**: Devuelve todas las asignaciones de materias que tiene un profesor.
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<relation_id>",
+      "profesorId": "<profesor_id>",
+      "materiaGradoId": "<materia_grado_id>",
+      "turno": "matutino",
+      "anioEscolar": 2025
+    }
+  ]
+  ```
+
+#### **Obtener alumnos inscritos en una materia de un grado**
+- **URL**: `/professor-subjects/{materiaGradoId}/students`
+- **Método**: `GET`
+- **Descripción**: Devuelve todos los alumnos que están inscritos en el grado asociado a una materia específica.
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<student_id>",
+      "nombre": "Juan Pérez"
+    }
+  ]
+  ```
+
+### 6. Usuarios por rol
+
+#### **Obtener todos los profesores**
+- **URL**: `/users/profesores`
+- **Método**: `GET`
+- **Descripción**: Devuelve todos los usuarios con rol `profesor`.
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<user_id>",
+      "nombre": "Profesor 1",
+      "email": "profesor1@example.com",
+      "rol": "profesor"
+    }
+  ]
+  ```
+
+#### **Obtener todos los tutores**
+- **URL**: `/users/tutores`
+- **Método**: `GET`
+- **Descripción**: Devuelve todos los usuarios con rol `tutor`.
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<user_id>",
+      "nombre": "Tutor 1",
+      "email": "tutor1@example.com",
+      "rol": "tutor"
+    }
+  ]
+  ```
+
+#### **Obtener usuarios por rol**
+- **URL**: `/users/by-role/{rol}`
+- **Método**: `GET`
+- **Descripción**: Devuelve todos los usuarios con el rol especificado.
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<user_id>",
+      "nombre": "Usuario 1",
+      "email": "usuario1@example.com",
+      "rol": "<rol>"
+    }
+  ]
+  ```
+
+### 7. Alumnos por grado y turno
+
+#### **Obtener alumnos por grado**
+- **URL**: `/students/by-grado/{gradoId}`
+- **Método**: `GET`
+- **Descripción**: Devuelve todos los alumnos que pertenecen al grado especificado.
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<student_id>",
+      "nombre": "Juan Pérez",
+      "gradoId": "<grado_id>"
+    }
+  ]
+  ```
+
+#### **Obtener alumnos por turno**
+- **URL**: `/students/by-turno/{turno}`
+- **Método**: `GET`
+- **Descripción**: Devuelve todos los alumnos con el turno especificado (`matutino` o `vespertino`).
+- **Respuesta**:
+  ```json
+  [
+    {
+      "id": "<student_id>",
+      "nombre": "Juan Pérez",
+      "turno": "matutino"
+    }
+  ]
+  ```
+
 ## Notas adicionales
 
 - Usa herramientas como [Postman](https://www.postman.com/) o la documentación interactiva en `http://127.0.0.1:8000/docs` para probar los endpoints.
