@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from firebase_admin import credentials, initialize_app, auth, firestore
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timedelta
 import requests
@@ -43,7 +43,7 @@ class Student(BaseModel):
     apellido: str
     gradoId: str
     turno: str
-    fechaNacimiento: str  # Cambiado a string para aceptar valores como 23/05/2010
+    fechaNacimiento: str = Field(..., example="01/05/2025")  # Agregado ejemplo en formato DD/MM/YYYY
     activo: bool
 
 class TutorStudentRelation(BaseModel):
