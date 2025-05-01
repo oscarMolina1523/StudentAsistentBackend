@@ -174,6 +174,12 @@ def edit_profile(user_id: str, user: User):
 # CRUD for Students
 @app.post("/students")
 def create_student(student: Student):
+    # Convertir fecha de nacimiento al formato válido
+    try:
+        student.fechaNacimiento = datetime.strptime(student.fechaNacimiento, "%d/%m/%Y")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha de nacimiento inválido. Use DD/MM/YYYY.")
+
     student_ref = db.collection("students").add(student.dict())
     return {"id": student_ref[1].id, "message": "Student created successfully"}
 
