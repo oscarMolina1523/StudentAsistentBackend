@@ -511,6 +511,16 @@ def get_grade_subjects(gradoId: str):
     ]
     return subjects
 
+@app.get("/grade-subjects")
+def get_all_grade_subject_relations():
+    """
+    Retorna todas las relaciones entre grados y materias.
+    """
+    relations = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").stream()
+    ]
+    return relations
+
 # Endpoint to assign a professor to a subject of a grade
 @app.post("/professor-subjects")
 def create_professor_subject_relation(relation: ProfessorSubjectRelation):
@@ -522,6 +532,16 @@ def create_professor_subject_relation(relation: ProfessorSubjectRelation):
     # Create new relation
     relation_ref = db.collection("professor_subjects").add(relation.dict())
     return {"id": relation_ref[1].id, "message": "Relation created successfully"}
+
+@app.get("/professor-subjects")
+def get_all_professor_subject_relations():
+    """
+    Retorna todas las relaciones entre profesores y materias.
+    """
+    relations = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("professor_subjects").stream()
+    ]
+    return relations
 
 # Endpoint to list all subject assignments for a professor
 @app.get("/professor-subjects/{profesorId}")
