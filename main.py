@@ -37,6 +37,7 @@ class User(BaseModel):
     rol: str  # admin, profesor, tutor
     fotoPerfilUrl: Optional[str] = None
     fechaCreacion: datetime
+    password: str  # Added password field
 
 class Student(BaseModel):
     nombre: str
@@ -119,7 +120,9 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
 # Authentication Endpoints
 @app.post("/auth/register")
-def register_user(user: User, password: str):
+def register_user(user: User):
+    password = user.password  # Extract password from the user model
+
     # Check if user already exists
     existing_user = db.collection("users").where("email", "==", user.email).get()
     if existing_user:
