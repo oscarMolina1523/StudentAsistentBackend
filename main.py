@@ -219,6 +219,23 @@ def get_user(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     return user.to_dict()
 
+@app.get("/users")
+def get_all_users():
+    try:
+        users_ref = db.collection("users")
+        docs = users_ref.stream()
+
+        users = []
+        for doc in docs:
+            user_data = doc.to_dict()
+            user_data['id'] = doc.id  # Agrega el ID del documento como parte del usuario
+            users.append(user_data)
+
+        return users
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching users: {str(e)}")
+
+    
 @app.put("/users/{user_id}")
 def update_user(user_id: str, user: User):
     user_ref = db.collection("users").document(user_id)
