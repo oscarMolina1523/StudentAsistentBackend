@@ -392,64 +392,70 @@ def delete_grade(grade_id: str):
     grade_ref.delete()
     return {"message": "Grade deleted successfully"}
 
-@app.get("/grades/full")
-def get_full_grades(current_user: dict = Depends(get_current_user)):
-    # Fetch all grades
-    grades = [
-        {"id": doc.id, **doc.to_dict()} for doc in db.collection("grades").stream()
-    ]
+# @app.get("/grades/full")
+# def get_full_grades():
+#     # Fetch all grades
+#     grades = [
+#         {"id": doc.id, **doc.to_dict()} for doc in db.collection("grades").stream()
+#     ]
+#     print("Grades fetched:", grades)  # Debug log
 
-    full_grades = []
+#     full_grades = []
 
-    for grade in grades:
-        # Fetch subjects related to the grade
-        grade_subjects = [
-            {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").where("gradoId", "==", grade["id"]).stream()
-        ]
+#     for grade in grades:
+#         # Fetch subjects related to the grade
+#         grade_subjects = [
+#             {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").where("gradoId", "==", grade["id"]).stream()
+#         ]
+#         print(f"Grade subjects for grade {grade['id']}:", grade_subjects)  # Debug log
 
-        materias = []
-        for grade_subject in grade_subjects:
-            # Fetch subject name
-            subject = db.collection("subjects").document(grade_subject["materiaId"]).get()
-            subject_name = subject.to_dict()["nombre"] if subject.exists else None
+#         materias = []
+#         for grade_subject in grade_subjects:
+#             # Fetch subject name
+#             subject = db.collection("subjects").document(grade_subject["materiaId"]).get()
+#             subject_name = subject.to_dict()["nombre"] if subject.exists else None
+#             print(f"Subject fetched for grade_subject {grade_subject['id']}:", subject_name)  # Debug log
 
-            # Fetch professor assigned to the subject
-            professor_subject = db.collection("professor_subjects").where("materiaGradoId", "==", grade_subject["id"]).get()
-            professor_data = None
-            if professor_subject:
-                professor_id = professor_subject[0].to_dict()["profesorId"]
-                professor = db.collection("users").document(professor_id).get()
-                if professor.exists:
-                    professor_data = {
-                        "id": professor.id,
-                        "nombre": professor.to_dict().get("nombre"),
-                        "email": professor.to_dict().get("email")
-                    }
+#             # Fetch professor assigned to the subject
+#             professor_subject = db.collection("professor_subjects").where("materiaGradoId", "==", grade_subject["id"]).get()
+#             professor_data = None
+#             if professor_subject:
+#                 professor_id = professor_subject[0].to_dict()["profesorId"]
+#                 professor = db.collection("users").document(professor_id).get()
+#                 if professor.exists:
+#                     professor_data = {
+#                         "id": professor.id,
+#                         "nombre": professor.to_dict().get("nombre"),
+#                         "email": professor.to_dict().get("email")
+#                     }
+#             print(f"Professor data for grade_subject {grade_subject['id']}:", professor_data)  # Debug log
 
-            materias.append({
-                "id": grade_subject["id"],
-                "nombre": subject_name,
-                "semestre": grade_subject.get("semestre"),
-                "profesor": professor_data
-            })
+#             materias.append({
+#                 "id": grade_subject["id"],
+#                 "nombre": subject_name,
+#                 "semestre": grade_subject.get("semestre"),
+#                 "profesor": professor_data
+#             })
 
-        # Fetch students in the grade
-        students = [
-            {"id": doc.id, "nombre": f"{doc.to_dict().get('nombre', '')} {doc.to_dict().get('apellido', '')}"}
-            for doc in db.collection("students").where("gradoId", "==", grade["id"]).stream()
-        ]
+#         # Fetch students in the grade
+#         students = [
+#             {"id": doc.id, "nombre": f"{doc.to_dict().get('nombre', '')} {doc.to_dict().get('apellido', '')}"}
+#             for doc in db.collection("students").where("gradoId", "==", grade["id"]).stream()
+#         ]
+#         print(f"Students for grade {grade['id']}:", students)  # Debug log
 
-        full_grades.append({
-            "grado": {
-                "id": grade["id"],
-                "nombre": grade.get("nombre"),
-                "turno": grade.get("turno")
-            },
-            "materias": materias,
-            "alumnos": students
-        })
+#         full_grades.append({
+#             "grado": {
+#                 "id": grade["id"],
+#                 "nombre": grade.get("nombre"),
+#                 "turno": grade.get("turno")
+#             },
+#             "materias": materias,
+#             "alumnos": students
+#         })
 
-    return full_grades
+#     print("Full grades data:", full_grades)  # Debug log
+#     return full_grades
 
 # CRUD for Subjects
 @app.post("/subjects")
@@ -515,6 +521,16 @@ def get_grade_subjects(gradoId: str):
 def get_all_grade_subject_relations():
     """
     Retorna todas las relaciones entre grados y materias.
+    """
+    relations = [
+        {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").stream()
+    ]
+    return relations
+
+@app.get("/grade-subjects/all-relations")
+def get_all_grade_subjects_relations():
+    """
+    Retorna todas las relaciones entre grados y materias con sus IDs.
     """
     relations = [
         {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").stream()
@@ -633,10 +649,4 @@ def mark_attendance(attendance: Attendance):
             db.collection("notifications").add(notification.dict())
 
     return {"message": "Attendance recorded successfully"}
-
-# Obtener el puerto desde la variable de entorno o usar un valor por defecto
-port = int(os.getenv("PORT", 8000))
-
-if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=port)
