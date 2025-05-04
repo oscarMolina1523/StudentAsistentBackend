@@ -669,4 +669,4 @@ def mark_attendance(attendance: Attendance):
             db.collection("notifications").add(notification.dict())
 
     return {"message": "Attendance recorded successfully"}
-    uvicorn.run(app, host="0.0.0.0", port=port)
+uvicorn.run(app, host="0.0.0.0", port=port)
