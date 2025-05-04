@@ -76,7 +76,7 @@ class ProfessorSubjectRelation(BaseModel):
 
 class Attendance(BaseModel):
     alumnoId: str
-    materiaProfesorId: str
+    materiaId: str
     fecha: datetime
     estado: str  # presente, ausente, justificado
     justificacion: Optional[str] = None
@@ -647,23 +647,25 @@ def get_user_info(user_id: str):
 # Endpoint to mark attendance and generate notifications
 @app.post("/attendance/mark")
 def mark_attendance(attendance: Attendance):
-    # Validate materiaProfesorId
-    professor_subject = db.collection("professor_subjects").document(attendance.materiaProfesorId).get()
-    if not professor_subject.exists:
-        raise HTTPException(status_code=404, detail="Professor-Subject relation not found")
+    # Validar que la materia exista
+    subject_doc = db.collection("subjects").document(attendance.materiaId).get()
+    if not subject_doc.exists:
+        raise HTTPException(status_code=404, detail="Subject (materia) not found")
 
-    # Record attendance
-    attendance_ref = db.collection("attendance").add(attendance.dict())
+    # Guardar la asistencia
+    db.collection("attendance").add(attendance.dict())
 
-    # Generate notification if the student is absent or justified
+    # Si el estudiante está ausente o justificado, notificar al tutor
     if attendance.estado in ["ausente", "justificado"]:
+        nombre_materia = subject_doc.to_dict().get("nombre", "una materia")
+
         tutor_relations = db.collection("tutor_student_relations").where("alumnoId", "==", attendance.alumnoId).stream()
         for relation in tutor_relations:
             tutor_id = relation.to_dict()["tutorId"]
             notification = Notification(
                 alumnoId=attendance.alumnoId,
                 tutorId=tutor_id,
-                mensaje=f"Tu hijo/a estuvo {attendance.estado} en la clase de {attendance.materiaProfesorId}",
+                mensaje=f"Tu hijo/a estuvo {attendance.estado} en la clase de {nombre_materia}",
                 tipo=attendance.estado,
                 fechaEnvio=datetime.utcnow(),
                 leido=False
@@ -671,5 +673,7 @@ def mark_attendance(attendance: Attendance):
             db.collection("notifications").add(notification.dict())
 
     return {"message": "Attendance recorded successfully"}
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=port)
