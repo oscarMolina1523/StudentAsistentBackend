@@ -613,8 +613,10 @@ def get_user_info(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
 
     user_info = user_data.to_dict()
-    # If the user is a tutor, fetch grades and subjects of their children
-    if user_info["rol"] == "tutor":
+    rol = user_info.get("rol")
+
+    # Si es tutor, obtenemos información de hijos y notificaciones
+    if rol == "tutor":
         tutor_students = db.collection("tutor_student_relations").where("tutorId", "==", user_id).stream()
         grades = []
         subjects = []
@@ -625,14 +627,18 @@ def get_user_info(user_id: str):
             grade_subjects = db.collection("grade_subjects").where("gradoId", "==", student["gradoId"]).stream()
             for subject in grade_subjects:
                 subjects.append(subject.to_dict()["materiaId"])
-        # Fetch notifications
         notifications = [
             {"id": doc.id, **doc.to_dict()} for doc in db.collection("notifications").where("tutorId", "==", user_id).stream()
         ]
-        return {"grades": grades, "subjects": subjects, "notifications": notifications}
+        return {
+            "user": user_info,
+            "grades": grades,
+            "subjects": subjects,
+            "notifications": notifications,
+        }
 
-    # If the user is a professor, fetch assigned grades and subjects
-    if user_info["rol"] == "profesor":
+    # Si es profesor, mostramos materias y grados asignados
+    if rol == "profesor":
         assigned_subjects = db.collection("professor_subjects").where("profesorId", "==", user_id).stream()
         grades = []
         subjects = []
@@ -640,9 +646,17 @@ def get_user_info(user_id: str):
             subject_data = relation.to_dict()
             subjects.append(subject_data["materiaId"])
             grades.append(subject_data["gradoId"])
-        return {"grades": grades, "subjects": subjects}
+        return {
+            "user": user_info,
+            "grades": grades,
+            "subjects": subjects,
+        }
 
-    raise HTTPException(status_code=403, detail="Access denied for this role")
+    # Para cualquier otro rol, solo devolvemos la info del usuario
+    return {
+        "user": user_info
+    }
+
 
 # Endpoint to mark attendance and generate notifications
 @app.post("/attendance/mark")
