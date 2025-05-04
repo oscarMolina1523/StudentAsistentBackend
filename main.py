@@ -1,3 +1,4 @@
+import uvicorn 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -29,6 +30,7 @@ db = firestore.client()
 
 
 app = FastAPI()
+port = 8000
 
 # Models
 class User(BaseModel):
@@ -669,4 +671,5 @@ def mark_attendance(attendance: Attendance):
             db.collection("notifications").add(notification.dict())
 
     return {"message": "Attendance recorded successfully"}
-uvicorn.run(app, host="0.0.0.0", port=port)
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=port)
