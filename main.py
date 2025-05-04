@@ -655,24 +655,37 @@ def mark_attendance(attendance: Attendance):
     # Guardar la asistencia
     db.collection("attendance").add(attendance.dict())
 
-    # Si el estudiante está ausente o justificado, notificar al tutor
-    if attendance.estado in ["ausente", "justificado"]:
-        nombre_materia = subject_doc.to_dict().get("nombre", "una materia")
+    # Obtener el nombre de la materia
+    nombre_materia = subject_doc.to_dict().get("nombre", "una materia")
 
-        tutor_relations = db.collection("tutor_student_relations").where("alumnoId", "==", attendance.alumnoId).stream()
-        for relation in tutor_relations:
-            tutor_id = relation.to_dict()["tutorId"]
-            notification = Notification(
-                alumnoId=attendance.alumnoId,
-                tutorId=tutor_id,
-                mensaje=f"Tu hijo/a estuvo {attendance.estado} en la clase de {nombre_materia}",
-                tipo=attendance.estado,
-                fechaEnvio=datetime.utcnow(),
-                leido=False
-            )
-            db.collection("notifications").add(notification.dict())
+    # Buscar relaciones tutor-alumno para enviar notificación
+    tutor_relations = db.collection("tutor_student_relations").where("alumnoId", "==", attendance.alumnoId).stream()
+    
+    # Enviar notificación a cada tutor relacionado
+    for relation in tutor_relations:
+        tutor_id = relation.to_dict()["tutorId"]
+        notification = Notification(
+            alumnoId=attendance.alumnoId,
+            tutorId=tutor_id,
+            mensaje=f"Tu hijo/a estuvo {attendance.estado} en la clase de {nombre_materia}",
+            tipo=attendance.estado,
+            fechaEnvio=datetime.utcnow(),
+            leido=False
+        )
+        db.collection("notifications").add(notification.dict())
 
     return {"message": "Attendance recorded successfully"}
+
+@app.get("/notifications")
+def get_all_notifications():
+    try:
+        notifications = [
+            {"id": doc.id, **doc.to_dict()}
+            for doc in db.collection("notifications").stream()
+        ]
+        return notifications
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")
 
 
 if __name__ == "__main__":
