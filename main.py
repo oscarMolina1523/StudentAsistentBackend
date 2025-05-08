@@ -690,6 +690,40 @@ def mark_attendance(attendance: Attendance):
 
     return {"message": "Attendance recorded successfully"}
 
+@app.get("/attendance/summary")
+def get_attendance_summary():
+    try:
+        attendance_docs = db.collection("attendance").stream()
+        summary = []
+
+        for doc in attendance_docs:
+            att = doc.to_dict()
+
+            # Obtener datos del alumno
+            student_ref = db.collection("students").document(att["alumnoId"]).get()
+            student = student_ref.to_dict() if student_ref.exists else {}
+
+            # Obtener datos de la materia
+            subject_ref = db.collection("subjects").document(att["materiaId"]).get()
+            subject = subject_ref.to_dict() if subject_ref.exists else {}
+
+            summary.append({
+                "id": doc.id,
+                "alumnoId": att["alumnoId"],
+                "nombreAlumno": f"{student.get('nombre', '')} {student.get('apellido', '')}",
+                "gradoId": student.get("gradoId", ""),
+                "materiaId": att["materiaId"],
+                "nombreMateria": subject.get("nombre", ""),
+                "estado": att["estado"],  # presente, ausente, justificado
+                "fecha": att["fecha"],
+                "justificacion": att.get("justificacion", None)
+            })
+
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching attendance summary: {str(e)}")
+
+
 @app.get("/notifications")
 def get_all_notifications():
     try:
