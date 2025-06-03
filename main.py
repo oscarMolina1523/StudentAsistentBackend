@@ -1,5 +1,5 @@
 import uvicorn 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from firebase_admin import credentials, initialize_app, auth, firestore
@@ -21,8 +21,8 @@ FIREBASE_API_KEY = "AIzaSyDqlannZbTIy-WDM2ZmiOhsNPP7PzglDT8"  # Clave de API del
 firebase_credentials_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
 if firebase_credentials_path and os.path.exists(firebase_credentials_path):
     cred = credentials.Certificate(firebase_credentials_path)
-elif os.path.exists("studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json"):
-    cred = credentials.Certificate("studentasistent-c7cb5-firebase-adminsdk-fbsvc-450005e09d.json")
+elif os.path.exists("studentasistent-c7cb5-firebase-adminsdk-fbsvc-7861a8208c.json"):
+    cred = credentials.Certificate("studentasistent-c7cb5-firebase-adminsdk-fbsvc-7861a8208c.json")
 else:
     raise RuntimeError("Firebase credentials are not set in the environment or available as a local file")
 initialize_app(cred)
@@ -190,6 +190,15 @@ def get_students():
     ]
     return students
 
+@app.get("/students/paginated")
+def get_students_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    students_ref = db.collection("students")
+    students_query = students_ref.offset((page - 1) * page_size).limit(page_size).stream()
+    students = [
+        {"id": doc.id, **doc.to_dict()} for doc in students_query
+    ]
+    return {"page": page, "page_size": page_size, "students": students}
+
 @app.get("/students/{student_id}")
 def get_student(student_id: str):
     student = db.collection("students").document(student_id).get()
@@ -214,6 +223,15 @@ def delete_student(student_id: str):
     return {"message": "Student deleted successfully"}
 
 # User Endpoints
+@app.get("/users/paginated")
+def get_users_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    users_ref = db.collection("users")
+    users_query = users_ref.offset((page - 1) * page_size).limit(page_size).stream()
+    users = [
+        {"id": doc.id, **doc.to_dict()} for doc in users_query
+    ]
+    return {"page": page, "page_size": page_size, "users": users}
+
 @app.get("/users/{user_id}")
 def get_user(user_id: str):
     user = db.collection("users").document(user_id).get()
@@ -734,6 +752,34 @@ def get_all_notifications():
         return notifications
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")
+
+
+@app.get("/students/paginated")
+def get_students_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    students_ref = db.collection("students")
+    students_query = students_ref.offset((page - 1) * page_size).limit(page_size).stream()
+    students = [
+        {"id": doc.id, **doc.to_dict()} for doc in students_query
+    ]
+    return {"page": page, "page_size": page_size, "students": students}
+
+@app.get("/users/paginated")
+def get_users_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    users_ref = db.collection("users")
+    users_query = users_ref.offset((page - 1) * page_size).limit(page_size).stream()
+    users = [
+        {"id": doc.id, **doc.to_dict()} for doc in users_query
+    ]
+    return {"page": page, "page_size": page_size, "users": users}
+
+@app.get("/notifications/paginated")
+def get_notifications_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    notifications_ref = db.collection("notifications")
+    notifications_query = notifications_ref.offset((page - 1) * page_size).limit(page_size).stream()
+    notifications = [
+        {"id": doc.id, **doc.to_dict()} for doc in notifications_query
+    ]
+    return {"page": page, "page_size": page_size, "notifications": notifications}
 
 
 if __name__ == "__main__":
