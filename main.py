@@ -10,6 +10,7 @@ import requests
 import os
 from dotenv import load_dotenv
 import json
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -192,11 +193,14 @@ def get_students():
 
 @app.get("/students/paginated")
 def get_students_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    start = time.time()
     students_ref = db.collection("students")
     students_query = students_ref.offset((page - 1) * page_size).limit(page_size).stream()
     students = [
         {"id": doc.id, **doc.to_dict()} for doc in students_query
     ]
+    elapsed = time.time() - start
+    print(f"Tiempo sin paginación de Estudiantes: 10 segundos | Tiempo con paginación: {elapsed:.2f} segundos")
     return {"page": page, "page_size": page_size, "students": students}
 
 @app.get("/students/{student_id}")
@@ -225,11 +229,14 @@ def delete_student(student_id: str):
 # User Endpoints
 @app.get("/users/paginated")
 def get_users_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    start = time.time()
     users_ref = db.collection("users")
     users_query = users_ref.offset((page - 1) * page_size).limit(page_size).stream()
     users = [
         {"id": doc.id, **doc.to_dict()} for doc in users_query
     ]
+    elapsed = time.time() - start
+    print(f"Tiempo sin paginación de Usuarios: 13 segundos | Tiempo con paginación: {elapsed:.2f} segundos")
     return {"page": page, "page_size": page_size, "users": users}
 
 @app.get("/users/{user_id}")
@@ -431,71 +438,6 @@ def delete_grade(grade_id: str):
         raise HTTPException(status_code=404, detail="Grade not found")
     grade_ref.delete()
     return {"message": "Grade deleted successfully"}
-
-# @app.get("/grades/full")
-# def get_full_grades():
-#     # Fetch all grades
-#     grades = [
-#         {"id": doc.id, **doc.to_dict()} for doc in db.collection("grades").stream()
-#     ]
-#     print("Grades fetched:", grades)  # Debug log
-
-#     full_grades = []
-
-#     for grade in grades:
-#         # Fetch subjects related to the grade
-#         grade_subjects = [
-#             {"id": doc.id, **doc.to_dict()} for doc in db.collection("grade_subjects").where("gradoId", "==", grade["id"]).stream()
-#         ]
-#         print(f"Grade subjects for grade {grade['id']}:", grade_subjects)  # Debug log
-
-#         materias = []
-#         for grade_subject in grade_subjects:
-#             # Fetch subject name
-#             subject = db.collection("subjects").document(grade_subject["materiaId"]).get()
-#             subject_name = subject.to_dict()["nombre"] if subject.exists else None
-#             print(f"Subject fetched for grade_subject {grade_subject['id']}:", subject_name)  # Debug log
-
-#             # Fetch professor assigned to the subject
-#             professor_subject = db.collection("professor_subjects").where("materiaGradoId", "==", grade_subject["id"]).get()
-#             professor_data = None
-#             if professor_subject:
-#                 professor_id = professor_subject[0].to_dict()["profesorId"]
-#                 professor = db.collection("users").document(professor_id).get()
-#                 if professor.exists:
-#                     professor_data = {
-#                         "id": professor.id,
-#                         "nombre": professor.to_dict().get("nombre"),
-#                         "email": professor.to_dict().get("email")
-#                     }
-#             print(f"Professor data for grade_subject {grade_subject['id']}:", professor_data)  # Debug log
-
-#             materias.append({
-#                 "id": grade_subject["id"],
-#                 "nombre": subject_name,
-#                 "semestre": grade_subject.get("semestre"),
-#                 "profesor": professor_data
-#             })
-
-#         # Fetch students in the grade
-#         students = [
-#             {"id": doc.id, "nombre": f"{doc.to_dict().get('nombre', '')} {doc.to_dict().get('apellido', '')}"}
-#             for doc in db.collection("students").where("gradoId", "==", grade["id"]).stream()
-#         ]
-#         print(f"Students for grade {grade['id']}:", students)  # Debug log
-
-#         full_grades.append({
-#             "grado": {
-#                 "id": grade["id"],
-#                 "nombre": grade.get("nombre"),
-#                 "turno": grade.get("turno")
-#             },
-#             "materias": materias,
-#             "alumnos": students
-#         })
-
-#     print("Full grades data:", full_grades)  # Debug log
-#     return full_grades
 
 # CRUD for Subjects
 @app.post("/subjects")
@@ -756,29 +698,38 @@ def get_all_notifications():
 
 @app.get("/students/paginated")
 def get_students_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    start = time.time()
     students_ref = db.collection("students")
     students_query = students_ref.offset((page - 1) * page_size).limit(page_size).stream()
     students = [
         {"id": doc.id, **doc.to_dict()} for doc in students_query
     ]
+    elapsed = time.time() - start
+    print(f"Tiempo sin paginación: 10 segundos Estudiantes | Tiempo con paginación: {elapsed:.2f} segundos")
     return {"page": page, "page_size": page_size, "students": students}
 
 @app.get("/users/paginated")
 def get_users_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    start = time.time()
     users_ref = db.collection("users")
     users_query = users_ref.offset((page - 1) * page_size).limit(page_size).stream()
     users = [
         {"id": doc.id, **doc.to_dict()} for doc in users_query
     ]
+    elapsed = time.time() - start
+    print(f"Traer Usuarios Tiempo sin paginación: 13 segundos | Tiempo con paginación: {elapsed:.2f} segundos")
     return {"page": page, "page_size": page_size, "users": users}
 
 @app.get("/notifications/paginated")
 def get_notifications_paginated(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
+    start = time.time()
     notifications_ref = db.collection("notifications")
     notifications_query = notifications_ref.offset((page - 1) * page_size).limit(page_size).stream()
     notifications = [
         {"id": doc.id, **doc.to_dict()} for doc in notifications_query
     ]
+    elapsed = time.time() - start
+    print(f"Tiempo sin paginación de Notificaciones: 11 segundos | Tiempo con paginación: {elapsed:.2f} segundos")
     return {"page": page, "page_size": page_size, "notifications": notifications}
 
 
