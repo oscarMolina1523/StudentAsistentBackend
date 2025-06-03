@@ -189,6 +189,7 @@ def get_students():
         {"id": doc.id, **doc.to_dict()}  # Include the document ID in the response
         for doc in db.collection("students").stream()
     ]
+    print(f"Endpoint de estudiantes: tiene {len(students)} documentos")
     return students
 
 @app.get("/students/paginated")
@@ -258,6 +259,7 @@ def get_all_users():
             user_data['id'] = doc.id  # Agrega el ID del documento como parte del usuario
             users.append(user_data)
 
+        print(f"Endpoint de usuarios: tiene {len(users)} documentos")
         return users
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching users: {str(e)}")
@@ -691,6 +693,7 @@ def get_all_notifications():
             {"id": doc.id, **doc.to_dict()}
             for doc in db.collection("notifications").stream()
         ]
+        print(f"Endpoint de notificaciones: tiene {len(notifications)} documentos")
         return notifications
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching notifications: {str(e)}")
