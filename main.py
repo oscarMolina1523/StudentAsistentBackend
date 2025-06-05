@@ -45,6 +45,7 @@ class User(BaseModel):
 class Student(BaseModel):
     nombre: str
     apellido: str
+    gender: str
     gradoId: str
     turno: str
     fechaNacimiento: str  # Solo string, sin validación de formato
